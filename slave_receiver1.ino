@@ -4,6 +4,7 @@
 #define COMPRIMENTO_CONJUNTO_DE_TREINO 10
 #define COMPRIMENTO_BUFFER_CONJUNTO_DE_TREINO (COMPRIMENTO_CONJUNTO_DE_TREINO/2)
 #define PORTA_COMUNICACAO_MASTER    5
+#define PORTA_FINAL_EXPEDIENTE   11
 
 
 int conter;
@@ -17,22 +18,24 @@ struct a {
 };
 
 struct distance {
-  uint32_t distancia;
+  float distancia;
   int classe;
 };
 
-distance conjunto_distancias[5];
+distance conjunto_distancias[7];
 a valor_teste;
 a valores_treinamento[COMPRIMENTO_BUFFER_CONJUNTO_DE_TREINO];
 int contador_treinamento;
 
 void setup() {
-  // Mudar dependendo de qual mapper
   Wire.begin(8);                // join i2c bus with address 8
   Wire.onReceive(receiveEvent); // register event
+  Wire.onRequest(requestEvent);
   Serial.begin(9600);
   pinMode(PORTA_COMUNICACAO_MASTER,OUTPUT);
   digitalWrite(PORTA_COMUNICACAO_MASTER,HIGH);
+  pinMode(PORTA_FINAL_EXPEDIENTE,OUTPUT);
+  digitalWrite(PORTA_FINAL_EXPEDIENTE,HIGH);
   contador_treinamento = 0;     // start serial for output
 }
 
@@ -43,33 +46,9 @@ void loop() {
       for (i=0;i<contador_treinamento;i++) {
         conjunto_distancias[i].distancia = calc_distance(valores_treinamento[i].sensor1,valores_treinamento[i].sensor2,valores_treinamento[i].sensor3,valores_treinamento[i].sensor4,valores_treinamento[i].sensor5,valor_teste.sensor1,valor_teste.sensor2,valor_teste.sensor3,valor_teste.sensor4,valor_teste.sensor5);
         conjunto_distancias[i].classe =valores_treinamento[i].classe;
-        Serial.print(valores_treinamento[i].sensor1);
-        Serial.print(";");
-        Serial.print(valores_treinamento[i].sensor2);
-        Serial.print(";");
-        Serial.print(valores_treinamento[i].sensor3);
-        Serial.print(";");
-        Serial.print(valores_treinamento[i].sensor4);
-        Serial.print(";");
-        Serial.print(valores_treinamento[i].sensor5);
-        Serial.println(";");
-        Serial.println("-----------------------------------------------");
-        Serial.print(valor_teste.sensor1);
-        Serial.print(";");
-        Serial.print(valor_teste.sensor2);
-        Serial.print(";");
-        Serial.print(valor_teste.sensor3);
-        Serial.print(";");
-        Serial.print(valor_teste.sensor4);
-        Serial.print(";");
-        Serial.print(valor_teste.sensor5);
-        Serial.println(";");
-        Serial.print("Distancia : ");
-        Serial.println(conjunto_distancias[i].distancia);
-        Serial.print("Classe : ");
-        Serial.println(conjunto_distancias[i].classe);
       }
       contador_treinamento = 0;
+      digitalWrite(PORTA_FINAL_EXPEDIENTE,LOW);
   }
 }
 
@@ -118,7 +97,6 @@ void receiveEvent(int howMany) {
           break;
         }
         contador2++;
-        Serial.println(contador2);
     }  
   }
   if (c=='B') { //Vamos receber um dado do conjunto de treino!
@@ -163,20 +141,33 @@ void receiveEvent(int howMany) {
           break;
         }
         contador2++;
-        }
+    }
   }
   digitalWrite(PORTA_COMUNICACAO_MASTER,HIGH);
 }
 
-uint32_t calc_distance(int s11,int s12,int s13,int s14,int s15,int s21,int s22,int s23,int s24,int s25)
+double calc_distance(int s11,int s12,int s13,int s14,int s15,int s21,int s22,int s23,int s24,int s25)
 {
-  double square_difference_s1 = (s21 - s11) * (s21 - s11);
-  double square_difference_s2 = (s22 - s12) * (s22 - s12);
-  double square_difference_s3 = (s23 - s13) * (s23 - s13);
-  double square_difference_s4 = (s24 - s14) * (s24 - s14);
-  double square_difference_s5 = (s25 - s15) * (s25 - s15);  
+  Serial.println("a");
+  double square_difference_s1 = fabs(s21 - s11);
+  double square_difference_s2 = fabs(s22 - s12);
+  double square_difference_s3 = fabs(s23 - s13);
+  double square_difference_s4 = fabs(s24 - s14);
+  double square_difference_s5 = fabs(s25 - s15);  
   
-    double sum = square_difference_s1 + square_difference_s2 + square_difference_s3 + square_difference_s4 + square_difference_s5;
-    double value = sqrt(sum);
-    return value;
+    double sum = fabs(square_difference_s1 + square_difference_s2 + square_difference_s3 + square_difference_s4 + square_difference_s5);
+    return sum;
+}
+
+void requestEvent() {
+  int alfa;
+  for (alfa=0;alfa<COMPRIMENTO_BUFFER_CONJUNTO_DE_TREINO;alfa++) {
+    byte *b = (byte *) &conjunto_distancias[alfa].distancia;
+    Wire.write(b[0]);
+    Wire.write(b[1]);
+    Wire.write(b[2]);
+    Wire.write(b[3]);
+    Wire.write(conjunto_distancias[alfa].classe);
+   }
+  digitalWrite(PORTA_FINAL_EXPEDIENTE,LOW);
 }
